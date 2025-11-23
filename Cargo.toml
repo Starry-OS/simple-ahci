@@ -1,0 +1,11 @@
+[package]
+name = "simple-ahci"
+version = "0.1.0"
+edition = "2024"
+publish = ["crates-io"]
+
+[dependencies]
+bitfield-struct = "0.11.0"
+log = "0.4"
+thiserror = { version = "2.0.16", default-features = false }
+volatile = { version = "0.6.1", features = ["derive"] }
