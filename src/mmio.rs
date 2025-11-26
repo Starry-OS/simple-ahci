@@ -9,7 +9,7 @@ use volatile::{VolatileFieldAccess, access::ReadOnly};
 #[repr(C)]
 pub struct AhciMmio {
     pub host: GenericHostControl,
-    _res: [u8; 0xd0],
+    _res: [u8; 0xd8],
     pub ports: [PortRegisters; 32],
 }
 

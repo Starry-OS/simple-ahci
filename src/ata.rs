@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use alloc::string::String;
 
 pub const SATA_FIS_TYPE_SET_DEVICE_BITS_D2H: u8 = 161;
@@ -171,4 +173,43 @@ pub fn ata_id_to_string(raw: &[u16], off: usize, len: usize) -> String {
         res.push(chars[1] as char);
     }
     res
+}
+
+pub fn ata_id_u32(id: &[u16], n: usize) -> u32 {
+    (id[n + 1] as u32) << 16 | (id[n] as u32)
+}
+
+pub fn ata_id_u64(id: &[u16], n: usize) -> u64 {
+    let mut val: u64 = 0;
+    val |= (id[n + 3] as u64) << 48;
+    val |= (id[n + 2] as u64) << 32;
+    val |= (id[n + 1] as u64) << 16;
+    val |= id[n] as u64;
+    val
+}
+
+pub fn ata_id_has_lba(id: &[u16]) -> bool {
+    (id[ATA_ID_CAPABILITY] & (1 << 9)) != 0
+}
+
+pub fn ata_id_has_lba48(id: &[u16]) -> bool {
+    if (id[ATA_ID_COMMAND_SET_2] & 0xc000) != 0x4000 {
+        return false;
+    }
+    if ata_id_u64(id, ATA_ID_LBA_CAPACITY_2) == 0 {
+        return false;
+    }
+    (id[ATA_ID_COMMAND_SET_2] & (1 << 10)) != 0
+}
+
+pub fn ata_id_n_sectors(id: &[u16]) -> u64 {
+    if ata_id_has_lba(id) {
+        if ata_id_has_lba48(id) {
+            ata_id_u64(id, ATA_ID_LBA_CAPACITY_2)
+        } else {
+            ata_id_u32(id, ATA_ID_LBA_CAPACITY) as u64
+        }
+    } else {
+        0
+    }
 }
