@@ -289,7 +289,17 @@ pub struct AhciDriver<H> {
 }
 
 impl<H: Hal> AhciDriver<H> {
+    /// Try to construct a new AHCI driver from the given MMIO base address.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that:
+    /// - `base` is a valid virtual address pointing to the AHCI controller's MMIO register block.
+    /// - The memory region starting at `base` is properly mapped and accessible.
+    /// - No other code is concurrently accessing the same AHCI controller.
+    /// - The AHCI controller hardware is present and functional at the given address.
     pub fn try_new(base: usize) -> Option<Self> {
+        // SAFETY: The caller guarantees `base` is a valid AHCI MMIO base address.
         let mmio = unsafe { VolatilePtr::new(NonNull::new(base as *mut _).unwrap()) };
         let host = mmio.host();
 
