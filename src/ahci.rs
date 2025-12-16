@@ -177,19 +177,19 @@ impl<H: Hal> AhciPort<H> {
         })
     }
 
-    fn exec_cmd(&mut self, cfis: sata_fis_h2d, buf: *mut [u8], is_write: bool) {
+    fn exec_cmd(&mut self, cfis: sata_fis_h2d, buf: *mut [u8], is_write: bool) -> bool {
         // Always use slot 0 for simplicity (like reference driver)
         let slot: u32 = 0;
 
         // Wait for slot 0 to be free
         if !wait_until_timeout::<H>(|| self.port.CI().read() & 1 == 0, 1000) {
             error!("Slot 0 busy timeout");
-            return;
+            return false;
         }
 
         if buf.len() > AHCI_MAX_BYTES_PER_CMD {
             error!("Exceeding max transfer data limit");
-            return;
+            return false;
         }
 
         // Write command FIS to command table
@@ -199,7 +199,7 @@ impl<H: Hal> AhciPort<H> {
             let sg_cnt = ((buf.len() - 1) / AHCI_MAX_BYTES_PER_SG) + 1;
             if sg_cnt > AHCI_MAX_SG {
                 error!("Exceeding max sg limit");
-                return;
+                return false;
             }
 
             let mut remaining = buf.len();
@@ -270,9 +270,11 @@ impl<H: Hal> AhciPort<H> {
                 is,
                 tfd
             );
+            return false;
         }
 
         H::flush_dcache();
+        true
     }
 }
 
@@ -457,7 +459,27 @@ impl<H: Hal> AhciDriver<H> {
             }
 
             let slice = &mut buf[buf_offset..buf_offset + current_bytes];
-            self.port.exec_cmd(fis, slice, is_write);
+
+            // Check buffer alignment. AHCI requires data buffer to be even-byte aligned.
+            // We use 4-byte alignment to be safe.
+            if slice.as_ptr() as usize % 4 != 0 {
+                let mut temp_buf = alloc::vec![0u8; slice.len()];
+                if is_write {
+                    temp_buf.copy_from_slice(slice);
+                }
+                
+                if !self.port.exec_cmd(fis, temp_buf.as_mut_slice(), is_write) {
+                    return false;
+                }
+
+                if !is_write {
+                    slice.copy_from_slice(&temp_buf);
+                }
+            } else {
+                if !self.port.exec_cmd(fis, slice, is_write) {
+                    return false;
+                }
+            }
 
             start += count as u64;
             remaining_bytes -= current_bytes;
